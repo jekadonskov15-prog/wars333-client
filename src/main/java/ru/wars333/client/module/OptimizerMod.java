@@ -80,4 +80,20 @@ public class OptimizerMod extends Mod {
     /** Множитель плотности визуальных эффектов (его использует другой код проекта). */
     public float visualScale() {
         if (!saved) return 1f;
-        return "Максимум FPS".equals(profile.get()) ?
+        return "Максимум FPS".equals(profile.get()) ? 0.5f : 0.75f;
+    }
+
+    /** Частицы меняем по имени значения, чтобы не зависеть от названия enum-класса в разных версиях. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void setParticles(GameOptions o, String wanted) {
+        SimpleOption opt = o.getParticles();
+        Object cur = opt.getValue();
+        if (!(cur instanceof Enum)) return;
+        for (Object e : ((Enum) cur).getDeclaringClass().getEnumConstants()) {
+            if (((Enum) e).name().equals(wanted)) {
+                opt.setValue(e);
+                return;
+            }
+        }
+    }
+}
