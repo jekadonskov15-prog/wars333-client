@@ -2,8 +2,7 @@ package ru.wars333.client.module;
 
 import net.minecraft.client.option.CloudRenderMode;
 import net.minecraft.client.option.GameOptions;
-import net.minecraft.client.option.GraphicsMode;
-import net.minecraft.client.option.ParticlesMode;
+import net.minecraft.client.option.SimpleOption;
 import ru.wars333.client.setting.BoolSetting;
 import ru.wars333.client.setting.ModeSetting;
 
@@ -19,9 +18,8 @@ public class OptimizerMod extends Mod {
     private int sView, sSim, sBlend;
     private double sEntity;
     private boolean sShadows;
-    private ParticlesMode sParticles;
+    private Object sParticles;
     private CloudRenderMode sClouds;
-    private GraphicsMode sGraphics;
 
     public OptimizerMod() {
         super("Optimizer", Category.SYSTEM, "Снижает нагрузку: настройки графики и эффекты клиента", false);
@@ -33,6 +31,7 @@ public class OptimizerMod extends Mod {
     }
 
     @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void onEnable() {
         GameOptions o = mc.options;
         if (o == null) return;
@@ -44,13 +43,13 @@ public class OptimizerMod extends Mod {
             sShadows = o.getEntityShadows().getValue();
             sParticles = o.getParticles().getValue();
             sClouds = o.getCloudRenderMode().getValue();
-            sGraphics = o.getGraphicsMode().getValue();
             saved = true;
         }
         apply();
     }
 
     @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void onDisable() {
         GameOptions o = mc.options;
         if (o == null || !saved) return;
@@ -59,44 +58,36 @@ public class OptimizerMod extends Mod {
         o.getBiomeBlendRadius().setValue(sBlend);
         o.getEntityDistanceScaling().setValue(sEntity);
         o.getEntityShadows().setValue(sShadows);
-        o.getParticles().setValue(sParticles);
+        if (sParticles != null) ((SimpleOption) o.getParticles()).setValue(sParticles);
         o.getCloudRenderMode().setValue(sClouds);
-        o.getGraphicsMode().setValue(sGraphics);
         saved = false;
-    }
-
-    private int lastProfile = -1;
-
-    @Override
-    public void onTick() {
-        // если сменили профиль в меню — применяем заново
-        if (lastProfile != profile.index) {
-            lastProfile = profile.index;
-            if (saved) apply();
-        }
     }
 
     private void apply() {
         GameOptions o = mc.options;
-        boolean max = profile.index == 1;
-        o.getViewDistance().setValue(Math.min(sView, max ? 6 : 10));
-        o.getSimulationDistance().setValue(Math.min(sSim, max ? 5 : 8));
-        o.getBiomeBlendRadius().setValue(Math.min(sBlend, max ? 0 : 1));
-        o.getEntityDistanceScaling().setValue(Math.min(sEntity, max ? 0.5 : 0.75));
+        if (o == null) return;
+        boolean max = "Максимум FPS".equals(profile.get());
+
+        o.getViewDistance().setValue(max ? Math.min(sView, 6) : Math.min(sView, 10));
+        o.getSimulationDistance().setValue(max ? 5 : Math.min(sSim, 8));
+        o.getBiomeBlendRadius().setValue(max ? 0 : Math.min(sBlend, 1));
+        o.getEntityDistanceScaling().setValue(max ? 0.5 : 0.75);
         o.getEntityShadows().setValue(false);
-        o.getCloudRenderMode().setValue(max ? CloudRenderMode.OFF : CloudRenderMode.FAST);
-        if (max) {
-            o.getParticles().setValue(ParticlesMode.DECREASED);
-            o.getGraphicsMode().setValue(GraphicsMode.FAST);
-        }
+        o.getCloudRenderMode().setValue(CloudRenderMode.OFF);
+        setParticles(o, max ? "MINIMAL" : "DECREASED");
     }
 
-    /** множитель количества частиц/звёзд клиента: 1.0 без оптимизатора */
-    public static float visualScale() {
-        OptimizerMod o = ModuleManager.get(OptimizerMod.class);
-        if (o == null || !o.enabled) return 1f;
-        float s = o.profile.index == 0 ? 0.7f : 0.4f;
-        if (o.auto.value && mc.getCurrentFps() < 40) s *= 0.6f;
-        return s;
+    /** Частицы меняем по имени значения, чтобы не зависеть от названия enum-класса в разных версиях. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void setParticles(GameOptions o, String wanted) {
+        SimpleOption opt = o.getParticles();
+        Object cur = opt.getValue();
+        if (!(cur instanceof Enum)) return;
+        for (Object e : ((Enum) cur).getDeclaringClass().getEnumConstants()) {
+            if (((Enum) e).name().equals(wanted)) {
+                opt.setValue(e);
+                return;
+            }
+        }
     }
 }
